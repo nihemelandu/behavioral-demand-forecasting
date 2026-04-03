@@ -2,6 +2,18 @@ The strategic goal is to use clickstream-based purchase predictions to forecast 
 
 We are building a machine learning model that takes session clickstream data as input and predicts the likelihood of purchase, which is then aggregated into SKU-level demand forecasts to guide inventory replenishment decisions.
 
+1️⃣ What the IEEE Access Paper Did
+Focus: Session-level purchase prediction
+Input: Clickstream data (sequence of clicks, product views, etc.)
+Output: Binary purchase label or purchase probability per session
+Goal: Academic exploration of data representations and ML models for predicting purchases
+Business application: Not explicitly considered — mostly a methodological study
+2️⃣ What We Are Doing
+Step 1: Replicate their methodology — use clickstream to predict session-level purchase probability
+Step 2: Aggregate predictions across sessions → convert session-level predictions into SKU-level demand forecasts
+Step 3: Use predicted demand to inform inventory replenishment decisions
+Goal: Direct business impact — reduce stockouts, overstock, improve cash flow, and profitability
+
 
 Here’s the definitive source for the dataset we’ve been talking about:
 
