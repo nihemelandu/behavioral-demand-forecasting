@@ -1,60 +1,148 @@
-The strategic goal is to use clickstream-based purchase predictions to forecast short-term product demand, guiding inventory replenishment decisions to reduce stockouts and overstock, and improve operational efficiency and profitability.
+# Purchase Intent Prediction for Inventory Management
 
-We are building a machine learning model that takes session clickstream data as input and predicts the likelihood of purchase, which is then aggregated into SKU-level demand forecasts to guide inventory replenishment decisions.
+## Overview
 
-1️⃣ What the IEEE Access Paper Did
-Focus: Session-level purchase prediction
-Input: Clickstream data (sequence of clicks, product views, etc.)
-Output: Binary purchase label or purchase probability per session
-Goal: Academic exploration of data representations and ML models for predicting purchases
-Business application: Not explicitly considered — mostly a methodological study
-2️⃣ What We Are Doing
-Step 1: Replicate their methodology — use clickstream to predict session-level purchase probability
-Step 2: Aggregate predictions across sessions → convert session-level predictions into SKU-level demand forecasts
-Step 3: Use predicted demand to inform inventory replenishment decisions
-Goal: Direct business impact — reduce stockouts, overstock, improve cash flow, and profitability
+This project builds a purchase intent prediction model from e-commerce clickstream data and uses the model's output as a forward-looking demand signal to improve inventory management decisions. The core idea is that clickstream data captures user intent before it converts to a purchase, providing an earlier and richer demand signal than sales history alone.
 
+Traditional inventory management relies on historical sales data, which only reflects demand after transactions have completed. This creates a structural lag — the system cannot see latent demand or demand that is about to materialise. By predicting purchase likelihood at the session level and aggregating those predictions to the product level, we generate demand signals that are more timely than sales-history-based forecasting.
 
-Here’s the definitive source for the dataset we’ve been talking about:
+---
 
-📌 SIGIR 2021 E-Commerce Data Challenge (Coveo Data Challenge Dataset)
-This dataset was released as part of the 2021 SIGIR eCommerce Workshop Data Challenge hosted by Coveo.
-It’s a session-based clickstream dataset with millions of browsing events (views, adds, purchases) and associated shopping sessions—precisely the kind of data you need for your project.
-📂 Official Source / Repository
+## Research Foundation
 
-The dataset (and associated challenge materials) is hosted in this GitHub repository:
+This project replicates and extends the classification framework from:
 
-📌 SIGIR eCOM 2021 Data Challenge Repository (dataset + utilities)
+> Tokuç, A. A. & Dağ, T. (2025). Predicting User Purchases From Clickstream Data: A Comparative Analysis of Clickstream Data Representations and Machine Learning Models. *IEEE Access*, 13, 43796–43817. https://doi.org/10.1109/ACCESS.2025.3548267
 
-Inside you’ll find:
+The paper demonstrates that a hybrid data representation — combining aggregated session-level features with recent sequential user actions — paired with LightGBM achieves superior purchase prediction performance (AUC-ROC: 0.9865) on real-world e-commerce clickstream data. This project uses that classification framework as the foundation for a downstream inventory management application that the original paper does not attempt.
 
-browsing_train.csv — raw session browsing events
-search_train.csv — search interactions
-sku_to_content.csv — product metadata
-README and challenge documentation
+---
 
-To obtain the full data, you may need to agree to terms & conditions and possibly register (it’s free for research/educational use).
+## Dataset
 
-📌 What This Dataset Contains
+**eCommerce Behavior Data from a Multi-Category Store**
+- Source: [Kaggle — REES46](https://www.kaggle.com/datasets/mkechinov/ecommerce-behavior-data-from-multi-category-store)
+- Coverage: October 2019 to April 2020
+- Scale: 233+ million raw events
+- Event types: product view, add to cart, purchase
+- Schema: `event_time`, `event_type`, `product_id`, `category_id`, `category_code`, `brand`, `price`, `user_id`, `user_session`
 
-According to the SIGIR eCom Challenge description:
+---
 
-Session-based clickstream with ~36M events, including product interactions such as views, adds, and purchases
-Search interactions with clicked and non-clicked items
-Catalog metadata (e.g., SKU identifiers, content information)
-Anonymized user/session hashes and timestamps
+## Project Structure
+```
+├── data/
+│   ├── raw/                        # Raw downloaded dataset (not committed to repo)
+│   └── processed/                  # Cleaned and engineered datasets
+├── docs/
+│   ├── business_understanding.md   # CRISP-DM Phase 1
+│   ├── data_understanding.md       # CRISP-DM Phase 2
+│   ├── data_preparation.md         # CRISP-DM Phase 3
+│   ├── modelling.md                # CRISP-DM Phase 4
+│   ├── evaluation.md               # CRISP-DM Phase 5
+│   └── deployment.md               # CRISP-DM Phase 6
+├── notebooks/
+│   ├── 01_data_understanding.ipynb
+│   ├── 02_data_preparation.ipynb
+│   ├── 03_modelling.ipynb
+│   ├── 04_evaluation.ipynb
+│   └── 05_demand_signal.ipynb
+├── src/
+│   ├── data/
+│   │   ├── preprocessing.py
+│   │   └── feature_engineering.py
+│   ├── models/
+│   │   ├── baseline.py
+│   │   ├── train.py
+│   │   └── evaluate.py
+│   └── demand/
+│       └── signal.py               # Product-level demand signal aggregation
+├── tests/
+├── .gitignore
+├── requirements.txt
+└── README.md
+```
 
-This gives you a rich signal for customer behavior, including:
+---
 
-browsing patterns
-add-to-cart signals
-early engagement
-which items are ultimately purchased
+## Methodology
 
-—all of which you can use to link behavior to demand, just as we outlined in your pipeline.
+The project follows the CRISP-DM framework and has two sequential technical components.
 
-🧠 Why This Source Is Ideal
-Large-scale: tens of millions of events, high cardinality of sessions & SKUs
-Behavior-rich: includes clicks, views, carts, search queries
-Temporal: full timestamped logs suitable for time-window aggregation
-Realistic: data from an actual e-commerce setting, not synthetic
+**Component 1 — Purchase prediction model**
+
+A binary classification model predicting whether a session results in a purchase. Modelling follows a progression from simple to complex:
+
+1. Naive baseline — majority class predictor
+2. Logistic regression
+3. Decision tree
+4. Random forest
+5. Gradient boosting
+6. LightGBM — final benchmark consistent with Tokuç & Dağ (2025)
+
+Three data representations are evaluated for each model, following the paper:
+- Aggregated session attributes
+- Flattened last N actions per session
+- Hybrid — combination of both
+
+**Component 2 — Demand signal construction**
+
+Session-level predicted purchase probabilities are aggregated to the product level over rolling time windows to generate a forward-looking demand signal. This signal is compared against a sales-history baseline using a temporal holdout simulation, which also serves as a simulated A/B test to estimate business impact.
+
+---
+
+## Evaluation
+
+**Technical metrics**
+
+| Metric | Purpose |
+|---|---|
+| AUC-ROC | Primary discrimination metric |
+| AUC-PR | Performance under class imbalance |
+| F1-Score (purchase class) | Balance of precision and recall |
+| Geometric Mean | Imbalance-aware classification quality |
+| IBA | Imbalance-aware overall accuracy |
+| Log Loss | Model calibration quality |
+
+**Business KPIs**
+
+| KPI | Description |
+|---|---|
+| Stockout rate | Frequency of running out of stock on high-intent products |
+| Overstock rate | Excess inventory on low-intent products |
+| Forecast error (MAPE) | Intent-augmented forecast vs sales-history baseline |
+| Forecast lead time | Days earlier the intent signal predicts a demand spike |
+| Lost sales reduction | Revenue recovered by avoiding stockouts |
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+- Python 3.10+
+- Apache Spark 3.3.2 (for large-scale data processing)
+- See `requirements.txt` for full dependencies
+
+### Installation
+```bash
+git clone https://github.com/<your-username>/<repo-name>.git
+cd <repo-name>
+pip install -r requirements.txt
+```
+
+### Data
+
+Download the dataset from [Kaggle](https://www.kaggle.com/datasets/mkechinov/ecommerce-behavior-data-from-multi-category-store) and place the files in `data/raw/`. The raw data files are excluded from version control via `.gitignore`.
+
+---
+
+## Documentation
+
+Full phase-by-phase documentation is maintained in the `docs/` folder following the CRISP-DM framework. Start with [`docs/business_understanding.md`](docs/business_understanding.md).
+
+---
+
+## License
+
+This project is for research and educational purposes. The dataset is subject to the terms and conditions of the REES46 data provider.
